@@ -1,5 +1,5 @@
 ---
-title: "Interesse por política e simpatia partidária entre 2006 a 2018:"
+title: "Interesse por política e ideologia entre 2006 a 2018:"
 subtitle: "diferenças de gênero"
 author: "Larissa Martins Marques"
 institute: "Universidade de Brasília"
