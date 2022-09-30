@@ -1,134 +1,89 @@
 ---
-title: "Interesse por política (2006 a 2018):"
-subtitle: "diferenças de gênero"
+title: "Teste de hipóteses"
 author: "Larissa Martins Marques"
-institute: "Universidade de Brasília"
-date: "`r Sys.Date()`"
+date: "2022-09-12"
 output:
-  xaringan::moon_reader:
-    lib_dir: libs
-    nature:
-      titleSlideClass: ["right", "top", "my-title"]
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 6    
+    toc_float:
+      collapsed: yes
+    code_folding: hide #não mostre meus codigos - é opcional p/ o usuário #hide/show
+    fig_caption: yes #configuracao de figura - legenda
+    fig_height: 10 #configuracao de figura - altura
+    fig_width: 14 #configuracao de figura - largura
+    highlight: tango #Tango, pygments, kate, monochrome, espresso, zenburn, haddock, breezedark, e textmate.
+    theme: journal #cerulean, journal, flatly, darkly, readable, spacelab, united, cosmo, lumen, paper, sandstone
 ---
 
-
 ```{r setup, include=FALSE}
-
-options(htmltools.dir.version = FALSE)
-
-knitr::opts_chunk$set(
-  echo = FALSE,
-  fig.align = "center",
-  message = FALSE,
-  warning = FALSE,
-  cache = TRUE
-)
 
 library(tidyverse)
 library(ggthemes)
 library(plotly)
+library(dabestr)
 
 load("~/metodos_quantitativos_ipol/dados/lapop_abcp.RData")
 
+
+
+```
+
+### Teste de hipóteses 
+
+H1: mulheres manifestam menor interesse por política.
+
+Será utilizado o pacote dabest para amostras não pareadas. A escolha do pacote acontece devido a facilidade de se testar a hipótese por meio deste pacote. Além disso, o pacote realiza bootstrapping de maneira automática.
+
+
+```{r}
+
+
+banco_media_interesse <- lapop_abcp %>% 
+  select(interesse, Ano, Mulher) %>% 
+  filter(interesse <=4, 
+         Ano == 2018) %>% 
+  group_by(Mulher) %>% 
+  mutate(media_interesse = mean(interesse, na.rm = T))
+
+
+banco_media_interesse <- banco_media_interesse %>% 
+  dabest(media_interesse, Mulher,
+         idx = c("0", "1"), paired = FALSE)
+
+
+banco_media_interesse
+
+
+#banco_media_interesse %>% mean_diff() # nao funcionou
+
+
+
 ```
 
 
-### Introdução
---
+As fragilidades do teste: 
 
-O objetivo desse trabalho é apresentar as hipóteses que nortearão a pesquisa e alguns resultados com estimativas intervalares.
-
---
-
-### Hipóteses
-
-Um conjunto diferente de padrões de socialização experimentados por homens e mulheres podem influenciar de forma diferenciada os valores centrais, as atitudes políticas e o comportamento eleitoral. A partir disso, pretende-se testar as seguintes hipóteses
-
-  - H1: mulheres manifestam menor interesse por política.  
-  
-  - H2: o interesse por política de mulheres inseridas no mercado de trabalho é maior.
-  
-  - H3: o interesse por política de mulheres mais jovens é maior.
-
----
-
-class: title-slide-custom, center
-
-<br><br><br><br><br><br><br><br><br>
-
-# Alguns resultados
-
----
-class: title-slide-custom, center
-
-<br><br><br><br><br><br><br><br><br>
-
-# Interesse por política
-
----
-```{r echo = FALSE, warning=FALSE, message = FALSE, fig.height= 8, fig.width= 12, fig.align='center'}
-#INTERESSE POR POLÍTICA
-
-long_interesse <- lapop_abcp %>%
-  filter(interesse <= 4) %>% 
-  group_by(Mulher, Ano, interesse) %>% 
-  summarise(n_interesse = n()) %>% 
-  group_by(Mulher, Ano) %>% 
-  mutate(n = sum(n_interesse, na.rm = T), 
-         p = n_interesse/n, 
-         erro = sqrt((p *(1 - p)/n)),
-         perc = p *100,
-         p_erro = erro * 100)
+O teste não apresenta uma relacão de causalidade visto que nao é possivel observar todas as variáveis que podem interferir entre interesse por política e gênero. 
 
 
-a <- long_interesse %>% 
-  mutate(Mulher = case_when(Mulher == 0 ~ "Homem", 
-                            Mulher == 1 ~ "Mulher"), 
-         interesse = case_when(interesse == 1 ~ "Muito", 
-                               interesse == 2 ~ "Algo",
-                               interesse == 3 ~ "Pouco",
-                               interesse == 4 ~ "Nada"),
-         extremo = if_else(interesse %in% c("Muito", "Nada"), 1, 0)) %>% 
-  
-  ggplot(aes(x = as.numeric(Ano), y = perc, col = as_factor(interesse), fill = Mulher, linetype = Mulher))+
-  geom_line(stat = "identity", size = 1)+
-  geom_errorbar(aes(ymin = perc - p_erro, ymax = perc + p_erro), 
-                position =  position_dodge(0.05), size = 1, width = 1.5)+
-  scale_x_continuous(breaks = c(2006, 2008, 2010, 2012, 2014, 2016, 2018))+
-  theme_fivethirtyeight()+
-  #facet_grid(extremo~.)+
-  labs(title = "Interesse por política e sexo",
-       fill = "", 
-       col = "", 
-       y = "", 
-       linetype = "", 
-       caption = "Elaborado pelos autores com base no LAPOP 2006-2018")+
-  scale_color_manual(values = c("#0640bc", "#bd99cc",  "#8caef9" ,"#734488" ))+
-  scale_y_continuous(labels=function(x) paste0(x,"%"))+
-  theme(title = element_text(size = 10),
-  axis.title.y = element_text(size = 8),
-  axis.text.y = element_text(size = 8),
-  axis.text.x = element_text(size = 8),
-  legend.text = element_text(size = 8),
-  plot.caption = element_text(hjust = 0,size = 8),
-  panel.background = element_rect(fill = "white", colour = "white", color = "white"),
-  plot.background = element_rect(fill = "white", colour = "white", color = "white"),
-  legend.background=element_rect(fill="white"),
-  legend.position = "bottom",
-  legend.key = element_rect(fill = "white", color = "white"),
-  strip.background=element_rect(fill="white", colour="white"))
+```{r}
 
-m = list(
-  l = 100,
-  r = 40,
-  b = 100,
-  t = 50,
-  pad = 0, x=-1, y= -2,  xanchor='left', yanchor='bottom',   orientation='h')
+#plot(banco_media_interesse)
 
-  ggplotly(a) %>% layout(autosize = F, width = 800, height = 600, margin = m)
-
- 
 ```
+
+
+
+
+
+
+
+
+
+
+
 
 
 
