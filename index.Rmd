@@ -17,62 +17,175 @@ output:
     theme: journal #cerulean, journal, flatly, darkly, readable, spacelab, united, cosmo, lumen, paper, sandstone
 ---
 
+
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
-library(tidyverse)
-library(ggthemes)
-library(plotly)
-library(dabestr)
+## Abrir os pacotes
+pacman::p_load(tidyverse, infer, dabestr, rio, rstatix, kableExtra)
 
-load("~/metodos_quantitativos_ipol/dados/lapop_abcp.RData")
+## Abrir as bases 
 
+data_2018_a <- import("~/metodos_quantitativos_ipol/dados/2018_onda_a_estudo_painel_eleitoral_brasileiro.sav") 
 
 
 ```
 
-### Teste de hipóteses 
+```{r, set theme}
 
-H1: mulheres manifestam menor interesse por política.
+tema <- ggthemes::theme_fivethirtyeight() +
+  theme(legend.title = element_text(family = "Times New Roman"), 
+        legend.position = "bottom",
+        title = element_text(size = 10),
+        axis.title.y = element_text(size = 14, family = "Times New Roman"),
+        axis.text.y = element_text(size = 20, family = "Times New Roman"),
+        axis.text.x = element_text(size = 20, family = "Times New Roman"),
+        axis.title.x = element_text(size = 20,family = "Times New Roman"),
+        legend.text = element_text(size = 30, family = "Times New Roman"),
+        plot.caption = element_text(hjust = 0, size = 24, family = "Times New Roman" ),
+        panel.background = element_rect(fill = "white", colour = "white", color = "white"),
+        plot.background = element_rect(fill = "white", colour = "white", color = "white"),
+        legend.background = element_rect(fill = "white"),
+        panel.grid.major.x = element_line(colour = "#eceff2", size = 0.8),
+        panel.grid.major.y = element_line(colour = "#eceff2", size = 0.8),
+        legend.key = element_rect(fill = "white", color = "white"),
+        strip.background = element_rect(fill = "white", colour = "white"), 
+        strip.text = element_text(size = 29, colour = "black", face = "bold", family = "Times New Roman"))
+
+ggplot2::theme_set(tema)
+
+```
+
+
+# Considerações iniciais
+
+Os dados utilizados para a execução do teste de hipótese são derivados do *survey* "A cara da democracia" do ano de 2018 e pode ser acessado [aqui](https://www.institutodademocracia.org/a-cara-da-democracia). 
+
+A seguir algumas informações sobre os dados 
+
+```{r}
+
+tabela_1 <- data_2018_a %>% 
+  filter(interesse <=4) %>% 
+  select(interesse, sexo) %>% 
+  group_by(sexo, interesse) %>%
+  summarise(Total_casos_sexo_interesse = n()) %>% 
+  ungroup() %>% 
+  mutate(N = sum(Total_casos_sexo_interesse),
+         sexo = case_when(sexo == 1 ~ "Homem", 
+                          sexo == 2 ~ "Mulher"), 
+          interesse= case_when(interesse== 1 ~ "Muito interessado",
+                                                 interesse== 2 ~ "Interessado",
+                                                 interesse== 3 ~ "Pouco interessado",
+                                                 interesse== 4 ~ "Nada Interessado"))
+tabela_1 %>% 
+  kbl() %>% 
+  kable_material(c("striped"))
+
+```
+
+
+A pergunta é feita da seguinte maneira:
+
+Quanto o(a) sr(a) se interessa por política? O(a) sr(a) diria que é:
+
+1. Muito interessado,
+2. Interessado,
+3. Pouco interessado, ou
+4. Nada Interessado.
+
+No presente trabalho, para fins metodológicos as categorias (1-4) são tratas como númericas.
+
+## A hipótese a ser testada:
+
+    H1: mulheres manifestam menor interesse por política.
 
 Será utilizado o pacote dabest para amostras não pareadas. A escolha do pacote acontece devido a facilidade de se testar a hipótese por meio deste pacote. Além disso, o pacote realiza bootstrapping de maneira automática.
 
+# Teste de hipóteses 
+
+## A distribuição 
+
+Linhas verticais representam as médias dos grupos
 
 ```{r}
 
+data_2018_interesse <- data_2018_a %>% 
+  drop_na(c(interesse, sexo)) %>% # retira os NA 
+  filter(interesse<=4, 
+         sexo %in% c(1,2)) # filtra apenas os valores de interesse 
+  
 
-banco_media_interesse <- lapop_abcp %>% 
-  select(interesse, Ano, Mulher) %>% 
-  filter(interesse <=4, 
-         Ano == 2018) %>% 
-  group_by(Mulher) %>% 
-  mutate(media_interesse = mean(interesse, na.rm = T))
-
-
-banco_media_interesse <- banco_media_interesse %>% 
-  dabest(media_interesse, Mulher,
-         idx = c("0", "1"), paired = FALSE)
-
-
-banco_media_interesse
-
-
-#banco_media_interesse %>% mean_diff() # nao funcionou
-
-
+data_2018_interesse %>% 
+  mutate(sexo = case_when(sexo == 1 ~ "Homem", 
+                          sexo == 2 ~ "Mulher")) %>% # altera rótulo das variáveis
+    ggplot(aes(x=interesse, fill = as_factor(sexo), col = as_factor(sexo), group = as_factor(sexo)))+
+  geom_density(color=NA, alpha = 0.5)+
+  geom_vline(data=. %>% group_by(sexo) %>% summarise(media=mean(interesse,na.rm = T)),
+             size=2, aes(xintercept=media,color=sexo), show.legend = F) +
+  scale_x_continuous(breaks = c(1:10))+
+  
+  labs(x= NULL, y=NULL, fill = NULL, col = NULL, group = NULL)+ tema
+  
 
 ```
 
 
-As fragilidades do teste: 
+## Os pressupostos
 
-O teste não apresenta uma relacão de causalidade visto que nao é possivel observar todas as variáveis que podem interferir entre interesse por política e gênero. 
+### Normalidade dos dados 
+
+H0: distribuição dos dados = normal -> p > 0.05
+
+H1: distribuição dos dados != normal -> p <= 0.05
 
 
 ```{r}
 
-#plot(banco_media_interesse)
+data_2018_interesse %>% 
+  shapiro_test(interesse,sexo)
 
 ```
+
+O teste de normalidade conduziu a rejeição da hipótese nula, ou seja, a distribuição dos dados não é normal. 
+
+
+### Homogeneidade das Variâncias
+
+
+H0: as variâncias dos grupos são homogêneas -> p > 0.05
+
+H1: as variâncias dos grupos não são homogêneas -> p <= 0.05
+
+
+```{r}
+
+car::leveneTest(y = data_2018_interesse$interesse, 
+  group = data_2018_interesse$sexo)
+
+```
+
+O teste de homogeneidade de variânicas conduziu ao aceite da hipótese nula, ou seja, as variâncias dos dados analisados sãos homogêneas. 
+
+
+A escolha do teste adequado foi realizada de acordo com a análise dos pressupostos. Como o pressuposto de normalidade da distribuição dos dados não pode ser atendido, a maneira tradicional e conservadora exigiria que se realizasse um teste não paramétrico. Porém, foi realizado um Teste T com o pacote *infer* que realiza as devidas correções de maneira automática quando não se atende aos pressupostos.
+
+### O teste da hipótese
+
+```{r}
+
+data_2018_interesse %>%
+infer::t_test(formula = interesse ~ sexo, var.equal = TRUE)
+
+```
+
+
+Pode-se dizer que a média de interesse por política de homens e mulheres é diferente. 
+
+
+## As fragilidades do teste: 
+
+O teste de médias dos grupos não apresenta uma relação de causalidade visto que nao é possivel observar todas as variáveis que podem interferir entre interesse por política e gênero.
 
 
 
